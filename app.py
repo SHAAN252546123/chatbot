@@ -6,20 +6,20 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.tools import DuckDuckGoSearchRun
 
-# ========= CONFIG =========
-GROQ_API_KEY = "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"
-
+# ---------------- CONFIG ----------------
 st.set_page_config(page_title="ChatEasy", page_icon="💬", layout="wide")
 
-# ========= THEME =========
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
+# ---------------- THEME ----------------
 st.markdown("""
 <style>
 [data-testid="stAppViewContainer"] {
-    background: #000000;
+    background-color: #000000;
     color: white;
 }
 [data-testid="stSidebar"] {
-    background: #111111;
+    background-color: #111111;
 }
 h1,h2,h3,p,label {
     color: white !important;
@@ -48,7 +48,7 @@ div.stButton > button {
 </style>
 """, unsafe_allow_html=True)
 
-# ========= AI =========
+# ---------------- AI ----------------
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
     model="llama-3.3-70b-versatile"
@@ -60,7 +60,7 @@ prompt = ChatPromptTemplate.from_messages([
     ("system",
      """You are ChatEasy.
      Remember previous messages in the same chat.
-     If current/live/latest info is needed, use provided web results."""
+     Use provided live web search info for current/latest questions."""
     ),
     MessagesPlaceholder(variable_name="history"),
     ("human", "{input}")
@@ -68,7 +68,7 @@ prompt = ChatPromptTemplate.from_messages([
 
 chain = prompt | llm
 
-# ========= SESSION =========
+# ---------------- SESSION ----------------
 if "chats" not in st.session_state:
     cid = str(uuid.uuid4())
     st.session_state.chats = {
@@ -90,7 +90,7 @@ chat_chain = RunnableWithMessageHistory(
     history_messages_key="history"
 )
 
-# ========= SIDEBAR =========
+# ---------------- SIDEBAR ----------------
 with st.sidebar:
     st.title("ChatEasy")
 
@@ -105,7 +105,6 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-
     delete_id = None
 
     for cid, chat in st.session_state.chats.items():
@@ -134,12 +133,16 @@ with st.sidebar:
         st.session_state.current = next(iter(st.session_state.chats))
         st.rerun()
 
-# ========= MAIN =========
+# ---------------- MAIN ----------------
 current_chat = st.session_state.chats[st.session_state.current]
 messages = current_chat["messages"]
 
 def needs_web(q):
-    keys = ["today", "latest", "news", "live", "current", "score", "weather", "president", "ipl"]
+    keys = [
+        "today", "latest", "news", "live",
+        "current", "score", "weather",
+        "president", "ipl", "stock"
+    ]
     return any(k in q.lower() for k in keys)
 
 if messages:
@@ -158,7 +161,7 @@ else:
 
     user_input = st.text_input("", placeholder="Ask anything...")
 
-# ========= RESPONSE =========
+# ---------------- RESPONSE ----------------
 if user_input:
     current_chat["messages"].append({
         "role": "user",
@@ -176,10 +179,10 @@ if user_input:
             query = f"""
 User question: {user_input}
 
-Latest web info:
+Latest web information:
 {web}
 
-Answer accurately.
+Answer accurately using latest info.
 """
         except:
             pass
@@ -187,7 +190,11 @@ Answer accurately.
     with st.spinner("Thinking..."):
         res = chat_chain.invoke(
             {"input": query},
-            config={"configurable": {"session_id": st.session_state.current}}
+            config={
+                "configurable": {
+                    "session_id": st.session_state.current
+                }
+            }
         )
 
     current_chat["messages"].append({
@@ -197,7 +204,7 @@ Answer accurately.
 
     st.rerun()
 
-# ========= CLEAR =========
+# ---------------- CLEAR ----------------
 if st.button("Clear Current Conversation"):
     current_chat["messages"] = []
     current_chat["history"] = ChatMessageHistory()
