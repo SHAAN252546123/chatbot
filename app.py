@@ -5,13 +5,20 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.runnables import RunnableWithMessageHistory
+from tavily import TavilyClient
+import wikipedia
 
-# CONFIG
-st.set_page_config(page_title="ChatEasy", page_icon="💬", layout="wide")
+# ---------------- CONFIG ----------------
+st.set_page_config(
+    page_title="ChatEasy",
+    page_icon="💬",
+    layout="wide"
+)
 
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+TAVILY_API_KEY = st.secrets["TAVILY_API_KEY"]
 
-# THEME
+# ---------------- THEME ----------------
 st.markdown("""
 <style>
 [data-testid="stAppViewContainer"] {
@@ -48,21 +55,29 @@ div.stButton > button {
 </style>
 """, unsafe_allow_html=True)
 
-# AI
+# ---------------- AI ----------------
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
     model="llama-3.3-70b-versatile"
 )
 
+tavily = TavilyClient(api_key=TAVILY_API_KEY)
+
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are ChatEasy. Remember previous conversation in same chat."),
+    (
+        "system",
+        """You are ChatEasy.
+        Use provided live search results whenever available.
+        Remember previous conversation in same chat.
+        Give accurate and current answers."""
+    ),
     MessagesPlaceholder(variable_name="history"),
     ("human", "{input}")
 ])
 
 chain = prompt | llm
 
-# SESSION
+# ---------------- SESSION ----------------
 if "chats" not in st.session_state:
     cid = str(uuid.uuid4())
     st.session_state.chats = {
@@ -84,7 +99,28 @@ chat_chain = RunnableWithMessageHistory(
     history_messages_key="history"
 )
 
-# SIDEBAR
+# ---------------- SEARCH ----------------
+def live_search(query):
+    try:
+        result = tavily.search(
+            query=query,
+            search_depth="advanced",
+            max_results=5
+        )
+
+        snippets = []
+        for item in result["results"]:
+            snippets.append(item["content"])
+
+        return "\n".join(snippets)
+
+    except:
+        try:
+            return wikipedia.summary(query, sentences=3)
+        except:
+            return ""
+
+# ---------------- SIDEBAR ----------------
 with st.sidebar:
     st.title("ChatEasy")
 
@@ -103,7 +139,7 @@ with st.sidebar:
     delete_id = None
 
     for cid, chat in st.session_state.chats.items():
-        c1, c2 = st.columns([5, 1])
+        c1, c2 = st.columns([5,1])
 
         with c1:
             if st.button(chat["title"], key=f"chat_{cid}", use_container_width=True):
@@ -128,7 +164,7 @@ with st.sidebar:
         st.session_state.current = next(iter(st.session_state.chats))
         st.rerun()
 
-# MAIN
+# ---------------- MAIN ----------------
 current_chat = st.session_state.chats[st.session_state.current]
 
 if current_chat["messages"]:
@@ -147,7 +183,7 @@ else:
 
     user_input = st.text_input("", placeholder="Ask anything...")
 
-# RESPONSE
+# ---------------- RESPONSE ----------------
 if user_input:
     current_chat["messages"].append({
         "role": "user",
@@ -157,9 +193,21 @@ if user_input:
     if current_chat["title"] == "New Chat":
         current_chat["title"] = user_input[:25]
 
+    live_info = live_search(user_input)
+
+    query = f"""
+User Question:
+{user_input}
+
+Live Information:
+{live_info}
+
+Answer accurately using latest available information.
+"""
+
     with st.spinner("Thinking..."):
         res = chat_chain.invoke(
-            {"input": user_input},
+            {"input": query},
             config={"configurable": {"session_id": st.session_state.current}}
         )
 
@@ -170,7 +218,7 @@ if user_input:
 
     st.rerun()
 
-# CLEAR
+# ---------------- CLEAR ----------------
 if st.button("Clear Current Conversation"):
     current_chat["messages"] = []
     current_chat["history"] = InMemoryChatMessageHistory()
