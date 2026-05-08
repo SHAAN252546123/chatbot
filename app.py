@@ -3,13 +3,15 @@ import uuid
 import os
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.runnables import RunnableWithMessageHistory
 
+# CONFIG
 st.set_page_config(page_title="ChatEasy", page_icon="💬", layout="wide")
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
 
+# THEME
 st.markdown("""
 <style>
 [data-testid="stAppViewContainer"] {
@@ -27,6 +29,7 @@ h1,h2,h3,p,label {
     color: white !important;
     border: 1px solid #333 !important;
     border-radius: 18px !important;
+    padding: 14px !important;
 }
 div.stButton > button {
     background: #1a1a1a;
@@ -45,27 +48,28 @@ div.stButton > button {
 </style>
 """, unsafe_allow_html=True)
 
+# AI
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
     model="llama-3.3-70b-versatile"
 )
 
 prompt = ChatPromptTemplate.from_messages([
-    ("system",
-     "You are ChatEasy. Remember previous conversation in the same chat."),
+    ("system", "You are ChatEasy. Remember previous conversation in same chat."),
     MessagesPlaceholder(variable_name="history"),
     ("human", "{input}")
 ])
 
 chain = prompt | llm
 
+# SESSION
 if "chats" not in st.session_state:
     cid = str(uuid.uuid4())
     st.session_state.chats = {
         cid: {
             "title": "New Chat",
             "messages": [],
-            "history": ChatMessageHistory()
+            "history": InMemoryChatMessageHistory()
         }
     }
     st.session_state.current = cid
@@ -80,6 +84,7 @@ chat_chain = RunnableWithMessageHistory(
     history_messages_key="history"
 )
 
+# SIDEBAR
 with st.sidebar:
     st.title("ChatEasy")
 
@@ -88,7 +93,7 @@ with st.sidebar:
         st.session_state.chats[cid] = {
             "title": "New Chat",
             "messages": [],
-            "history": ChatMessageHistory()
+            "history": InMemoryChatMessageHistory()
         }
         st.session_state.current = cid
         st.rerun()
@@ -98,7 +103,7 @@ with st.sidebar:
     delete_id = None
 
     for cid, chat in st.session_state.chats.items():
-        c1, c2 = st.columns([5,1])
+        c1, c2 = st.columns([5, 1])
 
         with c1:
             if st.button(chat["title"], key=f"chat_{cid}", use_container_width=True):
@@ -117,12 +122,13 @@ with st.sidebar:
             st.session_state.chats[cid] = {
                 "title": "New Chat",
                 "messages": [],
-                "history": ChatMessageHistory()
+                "history": InMemoryChatMessageHistory()
             }
 
         st.session_state.current = next(iter(st.session_state.chats))
         st.rerun()
 
+# MAIN
 current_chat = st.session_state.chats[st.session_state.current]
 
 if current_chat["messages"]:
@@ -141,6 +147,7 @@ else:
 
     user_input = st.text_input("", placeholder="Ask anything...")
 
+# RESPONSE
 if user_input:
     current_chat["messages"].append({
         "role": "user",
@@ -163,7 +170,8 @@ if user_input:
 
     st.rerun()
 
+# CLEAR
 if st.button("Clear Current Conversation"):
     current_chat["messages"] = []
-    current_chat["history"] = ChatMessageHistory()
+    current_chat["history"] = InMemoryChatMessageHistory()
     st.rerun()
