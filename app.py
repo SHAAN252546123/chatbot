@@ -10,7 +10,7 @@ import wikipedia
 
 # ---------------- CONFIG ----------------
 st.set_page_config(
-    page_title="NAKKAN CHAT BOT ",
+    page_title="CHATEasy ",
     page_icon="💬",
     layout="wide"
 )
